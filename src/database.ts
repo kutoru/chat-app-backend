@@ -1,69 +1,73 @@
-import mysql from "mysql2/promise";
-import { Result } from "./Result";
-import { PoolConnection } from "mysql2/promise";
+import { Pool, PoolConnection, createPool } from "mysql2/promise";
+import { Result } from "typescript-result";
 
-const pool = mysql.createPool({
+const pool = createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
 });
 
-export async function runTransaction(
-  queries: {
-    query: string;
-    params?: any[];
-  }[],
-): Promise<Result<void>> {
-  const connResult: Result<PoolConnection> = await Result.tryAsync(async () => {
+export async function poolQuery<T>(q: string, params?: any[]) {
+  return await genericQuery<T>(pool, q, params);
+}
+
+async function genericQuery<T>(
+  conn: PoolConnection | Pool,
+  q: string,
+  params?: any[],
+): Promise<Result<T[], Error>> {
+  return Result.try(async () => {
+    const [result, _fields] = await conn.query(q, params);
+    console.log("DB query res:", result, _fields);
+    return result as T[];
+  });
+}
+
+class TransactionConnection {
+  private _released = false;
+  constructor(private readonly _conn: PoolConnection) {}
+
+  async query<T>(q: string, params?: any[]) {
+    if (this._released) {
+      throw new Error("Tried to use a released TransactionConnection");
+    }
+
+    return await genericQuery<T>(this._conn, q, params);
+  }
+
+  async commit(): Promise<Result<void, Error>> {
+    const commitResult = await Result.try(async () => {
+      return await this._conn.commit();
+    });
+    if (commitResult.isError()) {
+      return commitResult;
+    }
+
+    this._conn.release();
+    this._released = true;
+
+    return Result.ok();
+  }
+}
+
+export async function getTransactionConnection(): Promise<
+  Result<TransactionConnection, Error>
+> {
+  const connResult = await Result.try(async () => {
     return await pool.getConnection();
   });
-  if (connResult.err()) {
+  if (connResult.isError()) {
     return connResult;
   }
 
-  const conn = connResult.value();
-  const tranResult: Result<void> = await Result.tryAsync(async () => {
+  const conn = connResult.getOrThrow();
+
+  const tranResult = await Result.try(async () => {
     return await conn.beginTransaction();
   });
-  if (tranResult.err()) {
+  if (tranResult.isError()) {
     return tranResult;
   }
 
-  const promises = [];
-
-  for (let i = 0; i < queries.length; i++) {
-    promises.push(conn.query(queries[i].query, queries[i].params));
-  }
-
-  const results = await Promise.allSettled(promises);
-
-  for (let i = 0; i < results.length; i++) {
-    if (results[i].status === "rejected") {
-      const result = results[i] as PromiseRejectedResult;
-      return Result.Err(
-        "Could not execute one of the queries: " + result.reason,
-      );
-    }
-  }
-
-  const commitResult: Result<void> = await Result.tryAsync(async () => {
-    return await conn.commit();
-  });
-  if (commitResult.err()) {
-    return commitResult;
-  }
-
-  conn.release();
-
-  return Result.Ok(null as unknown as void);
-}
-
-export async function query<T>(
-  q: string,
-  params?: any[],
-): Promise<Result<T[]>> {
-  return Result.tryAsync(async () => {
-    const [result, _fields] = await pool.query(q, params);
-    return result as T[];
-  });
+  return Result.ok(new TransactionConnection(conn));
 }

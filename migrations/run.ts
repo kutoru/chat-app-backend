@@ -1,10 +1,11 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import { runTransaction } from "../src/database";
+import { getTransactionConnection } from "../src/database";
 import fs from "fs/promises";
+import { Result } from "typescript-result";
 
-async function executeFile(fileName: string) {
+async function executeSqlFile(fileName: string) {
   const file = (await fs.readFile(fileName)).toString();
 
   const queries = file
@@ -14,11 +15,37 @@ async function executeFile(fileName: string) {
       return { query: v };
     });
 
-  return await runTransaction(queries);
+  const connResult = await getTransactionConnection();
+  if (connResult.isError()) {
+    return connResult;
+  }
+
+  const conn = connResult.getOrThrow();
+  const promises = [];
+
+  for (let i = 0; i < queries.length; i++) {
+    promises.push(conn.query(queries[i].query));
+  }
+
+  const results = await Promise.allSettled(promises);
+
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].status === "rejected") {
+      const errorResult = results[i] as PromiseRejectedResult;
+
+      return Result.error(
+        new Error(
+          "Could not execute one of the queries: " + errorResult.reason,
+        ),
+      );
+    }
+  }
+
+  return await conn.commit();
 }
 
 (async () => {
-  console.log("DB update start");
+  console.log("DB update started");
 
   let up = false;
   let down = false;
@@ -37,23 +64,23 @@ async function executeFile(fileName: string) {
   }
 
   if (down) {
-    const downRes = await executeFile("./migrations/down.sql");
+    const downRes = await executeSqlFile("./migrations/down.sql");
     console.log("Down result:", downRes);
 
-    if (downRes.err()) {
-      process.exit(0);
+    if (downRes.isError()) {
+      process.exit(1);
     }
   }
 
   if (up) {
-    const upRes = await executeFile("./migrations/up.sql");
+    const upRes = await executeSqlFile("./migrations/up.sql");
     console.log("Up result:", upRes);
 
-    if (upRes.err()) {
-      process.exit(0);
+    if (upRes.isError()) {
+      process.exit(1);
     }
   }
 
-  console.log("DB udpate end");
+  console.log("DB udpate successfully ended");
   process.exit(0);
 })();
