@@ -3,6 +3,7 @@ dotenv.config();
 
 import fastify, { FastifyReply } from "fastify";
 import fastifyCookie from "@fastify/cookie";
+import cors from "@fastify/cors";
 import { loginSchema } from "./models/fastify-schemas";
 import LoginBody from "./models/LoginBody";
 import auth from "./routes/auth";
@@ -10,9 +11,15 @@ import AppError from "./models/AppError";
 import { validateToken } from "./tokens";
 
 const TOKEN_TTL = Number(process.env.TOKEN_TTL);
+const FRONTEND_URL = process.env.FRONTEND_URL!;
 
 const app = fastify();
 app.register(fastifyCookie);
+app.register(cors, {
+  origin: [FRONTEND_URL],
+  allowedHeaders: ["Content-Type"],
+  credentials: true,
+});
 
 app.addHook("onRequest", async (req, res) => {
   console.log(req.method, req.url);
@@ -45,7 +52,7 @@ app.post("/login", { schema: loginSchema }, async (request, response) => {
     sameSite: false,
   });
 
-  response.send();
+  response.send({});
 });
 
 app.post("/register", { schema: loginSchema }, async (request, response) => {
@@ -62,10 +69,10 @@ app.post("/register", { schema: loginSchema }, async (request, response) => {
     maxAge: TOKEN_TTL,
     path: "/",
     httpOnly: true,
-    sameSite: false,
+    sameSite: "none",
   });
 
-  response.send();
+  response.send({});
 });
 
 function handleError(response: FastifyReply, error: Error) {
