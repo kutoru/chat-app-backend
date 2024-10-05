@@ -3,7 +3,7 @@ import { poolQuery } from "../database";
 import LoginBody from "../models/LoginBody";
 import User from "../models/User";
 import bcrypt from "bcrypt";
-import generateNewToken from "../tokens";
+import { generateNewToken } from "../tokens";
 import AppError from "../models/AppError";
 import { ResultSetHeader } from "mysql2";
 
@@ -30,9 +30,8 @@ async function login(body: LoginBody) {
     return Result.error(INVALID_CREDS_ERR);
   }
 
-  const token = generateNewToken(user.id);
-
-  return Result.ok(token);
+  const tokenRes = await generateNewToken(user.id);
+  return tokenRes;
 }
 
 async function register(body: LoginBody) {
@@ -64,9 +63,9 @@ async function register(body: LoginBody) {
   }
 
   const userId = insertRes.getOrThrow().insertId;
-  const token = generateNewToken(userId);
 
-  return Result.ok(token);
+  const tokenRes = await generateNewToken(userId);
+  return tokenRes;
 }
 
 export default {

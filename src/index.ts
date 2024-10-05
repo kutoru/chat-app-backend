@@ -7,21 +7,21 @@ import { loginSchema } from "./models/fastify-schemas";
 import LoginBody from "./models/LoginBody";
 import auth from "./routes/auth";
 import AppError from "./models/AppError";
+import { validateToken } from "./tokens";
 
 const TOKEN_TTL = Number(process.env.TOKEN_TTL);
 
-let a = 0;
 const app = fastify();
 app.register(fastifyCookie);
 
 app.addHook("onRequest", async (req, res) => {
   console.log(req.method, req.url);
-  console.log("Req cookies:", req.cookies);
 
-  a++;
-  if (a % 2 == 0) {
-    // res.code(400).send({ message: "unlucky" });
-  }
+  const tokenRes = req.cookies.t
+    ? await validateToken(req.cookies.t)
+    : undefined;
+
+  console.log("Req cookies:", req.cookies, tokenRes);
 });
 
 app.get("/", async (request, response) => {
