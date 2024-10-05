@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import fastify, { FastifyReply } from "fastify";
+import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import { loginSchema } from "./models/fastify-schemas";
@@ -9,6 +9,8 @@ import LoginBody from "./models/LoginBody";
 import auth from "./routes/auth";
 import AppError from "./models/AppError";
 import { validateToken } from "./tokens";
+import fs from "fs/promises";
+import fsSync from "fs";
 
 const TOKEN_TTL = Number(process.env.TOKEN_TTL);
 const FRONTEND_URL = process.env.FRONTEND_URL!;
@@ -40,8 +42,7 @@ app.post("/login", { schema: loginSchema }, async (request, response) => {
   console.log("Login res:", result);
 
   if (result.isError()) {
-    handleError(response, result.error);
-    return;
+    return handleError(response, result.error);
   }
 
   const cookieValue = result.getOrThrow();
@@ -52,7 +53,7 @@ app.post("/login", { schema: loginSchema }, async (request, response) => {
     sameSite: false,
   });
 
-  response.send({});
+  return response.send({});
 });
 
 app.post("/register", { schema: loginSchema }, async (request, response) => {
@@ -60,8 +61,7 @@ app.post("/register", { schema: loginSchema }, async (request, response) => {
   console.log("Register res:", result);
 
   if (result.isError()) {
-    handleError(response, result.error);
-    return;
+    return handleError(response, result.error);
   }
 
   const cookieValue = result.getOrThrow();
@@ -72,8 +72,36 @@ app.post("/register", { schema: loginSchema }, async (request, response) => {
     sameSite: "none",
   });
 
-  response.send({});
+  return response.send({});
 });
+
+app.get(
+  "/files/:fileHash",
+  async (
+    request: FastifyRequest<{ Params: { fileHash: string } }>,
+    response,
+  ) => {
+    const fileHash = request.params.fileHash;
+
+    // avoiding the "..%2F.env" file
+    if (fileHash.includes("/")) {
+      return response.code(400).send({ message: "Invalid file hash" });
+    }
+
+    const filePath = "./files/" + fileHash;
+    const exists = await fs.stat(filePath).then(
+      () => true,
+      () => false,
+    );
+
+    if (!exists) {
+      return response.code(400).send({ message: "Invalid file hash" });
+    }
+
+    const stream = fsSync.createReadStream(filePath);
+    return response.send(stream);
+  },
+);
 
 function handleError(response: FastifyReply, error: Error) {
   let code = 500;
@@ -88,7 +116,7 @@ function handleError(response: FastifyReply, error: Error) {
       break;
   }
 
-  response.code(code).send({ message });
+  return response.code(code).send({ message });
 }
 
 (async () => {
