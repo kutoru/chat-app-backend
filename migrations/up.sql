@@ -1,7 +1,7 @@
 
 CREATE TABLE users (
     id INT AUTO_INCREMENT NOT NULL,
-    username VARCHAR(255) NOT NULL,
+    username VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     profile_image VARCHAR(255),
     role ENUM('user', 'admin') NOT NULL DEFAULT 'user',

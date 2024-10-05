@@ -35,7 +35,12 @@ async function login(body: LoginBody) {
 }
 
 async function register(body: LoginBody) {
-  if (body.username.length < 4 || body.password.length < 4) {
+  if (
+    body.username.length < 4 ||
+    body.username.length > 255 ||
+    body.password.length < 4 ||
+    body.password.length > 255
+  ) {
     return Result.error(INVALID_CREDS_FORMAT_ERR);
   }
 

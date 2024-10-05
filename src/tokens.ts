@@ -11,7 +11,7 @@ export async function generateNewToken(userId: number) {
   }
 
   const payload: JwtPayload = {
-    exp: Math.floor(Date.now() / 1000) + TOKEN_TTL / 4,
+    exp: Math.floor(Date.now() / 1000) + TOKEN_TTL,
     userId: userId,
   };
 
