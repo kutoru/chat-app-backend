@@ -15,15 +15,15 @@ async function genericQuery<T>(
   conn: PoolConnection | Pool,
   q: string,
   params?: any[],
-): Promise<Result<T[], Error>> {
+): Promise<Result<T, Error>> {
   return Result.try(async () => {
     const [result, _fields] = await conn.query(q, params);
-    console.log("DB query res:", result, _fields);
-    return result as T[];
+    console.log("DB query res:", result);
+    return result as T;
   });
 }
 
-class TransactionConnection {
+export class TransactionConnection {
   private _released = false;
   constructor(private readonly _conn: PoolConnection) {}
 

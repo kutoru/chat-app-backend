@@ -1,22 +1,26 @@
-import fastify from "fastify";
-import fastifyCookie from "@fastify/cookie";
 import dotenv from "dotenv";
+dotenv.config();
+
+import fastify, { FastifyReply } from "fastify";
+import fastifyCookie from "@fastify/cookie";
 import { loginSchema } from "./models/fastify-schemas";
 import LoginBody from "./models/LoginBody";
-import login from "./routes/login";
+import auth from "./routes/auth";
+import AppError from "./models/AppError";
 
-dotenv.config();
+const TOKEN_TTL = Number(process.env.TOKEN_TTL);
 
 let a = 0;
 const app = fastify();
 app.register(fastifyCookie);
 
 app.addHook("onRequest", async (req, res) => {
-  console.log("From hook:", req.cookies);
+  console.log(req.method, req.url);
+  console.log("Req cookies:", req.cookies);
 
   a++;
   if (a % 2 == 0) {
-    res.code(400).send();
+    // res.code(400).send({ message: "unlucky" });
   }
 });
 
@@ -25,21 +29,60 @@ app.get("/", async (request, response) => {
 });
 
 app.post("/login", { schema: loginSchema }, async (request, response) => {
-  const result = await login(request.body as LoginBody);
+  const result = await auth.login(request.body as LoginBody);
+  console.log("Login res:", result);
 
-  response.setCookie("t", "abcde", {
-    maxAge: 60,
+  if (result.isError()) {
+    handleError(response, result.error);
+    return;
+  }
+
+  const cookieValue = result.getOrThrow();
+  response.setCookie("t", cookieValue, {
+    maxAge: TOKEN_TTL,
     path: "/",
     httpOnly: true,
     sameSite: false,
   });
 
-  response.send({ some_key: "some_val" });
+  response.send();
 });
 
-app.post("/register", async (request, response) => {
-  return { some_key: "some_val" };
+app.post("/register", { schema: loginSchema }, async (request, response) => {
+  const result = await auth.register(request.body as LoginBody);
+  console.log("Register res:", result);
+
+  if (result.isError()) {
+    handleError(response, result.error);
+    return;
+  }
+
+  const cookieValue = result.getOrThrow();
+  response.setCookie("t", cookieValue, {
+    maxAge: TOKEN_TTL,
+    path: "/",
+    httpOnly: true,
+    sameSite: false,
+  });
+
+  response.send();
 });
+
+function handleError(response: FastifyReply, error: Error) {
+  let code = 500;
+  let message = "Server error";
+
+  switch (error.message) {
+    case AppError.InvalidCredentials:
+    case AppError.InvalidCredentialsFormat:
+    case AppError.UserExists:
+      code = 400;
+      message = error.message;
+      break;
+  }
+
+  response.code(code).send({ message });
+}
 
 (async () => {
   const res = await app.listen({ port: 3030, host: "0.0.0.0" });
