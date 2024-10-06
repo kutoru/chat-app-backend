@@ -1,6 +1,5 @@
 import { Result } from "typescript-result";
 import { poolQuery } from "../database";
-import LoginBody from "../models/LoginBody";
 import User from "../models/User";
 import bcrypt from "bcrypt";
 import { generateNewToken } from "../tokens";
@@ -11,10 +10,10 @@ const INVALID_CREDS_ERR = new Error(AppError.InvalidCredentials);
 const USER_EXISTS_ERR = new Error(AppError.UserExists);
 const INVALID_CREDS_FORMAT_ERR = new Error(AppError.InvalidCredentialsFormat);
 
-async function login(body: LoginBody) {
+async function login(data: { username: string; password: string }) {
   const res = await poolQuery<User[]>(
     `SELECT * FROM users WHERE username = ?;`,
-    [body.username],
+    [data.username],
   );
   if (res.isError()) {
     return res;
@@ -25,7 +24,7 @@ async function login(body: LoginBody) {
     return Result.error(INVALID_CREDS_ERR);
   }
 
-  const isMatch = await bcrypt.compare(body.password, user.password);
+  const isMatch = await bcrypt.compare(data.password, user.password);
   if (!isMatch) {
     return Result.error(INVALID_CREDS_ERR);
   }
@@ -34,19 +33,19 @@ async function login(body: LoginBody) {
   return tokenRes;
 }
 
-async function register(body: LoginBody) {
+async function register(data: { username: string; password: string }) {
   if (
-    body.username.length < 4 ||
-    body.username.length > 255 ||
-    body.password.length < 4 ||
-    body.password.length > 255
+    data.username.length < 4 ||
+    data.username.length > 255 ||
+    data.password.length < 4 ||
+    data.password.length > 255
   ) {
     return Result.error(INVALID_CREDS_FORMAT_ERR);
   }
 
   const usernameRes = await poolQuery<{ username: string }[]>(
     `SELECT username FROM users WHERE username = ?;`,
-    [body.username],
+    [data.username],
   );
   if (usernameRes.isError()) {
     return usernameRes;
@@ -57,11 +56,11 @@ async function register(body: LoginBody) {
     return Result.error(USER_EXISTS_ERR);
   }
 
-  const hashedPass = await bcrypt.hash(body.password, 10);
+  const hashedPass = await bcrypt.hash(data.password, 10);
 
   const insertRes = await poolQuery<ResultSetHeader>(
     `INSERT INTO users (username, password) VALUES (?, ?);`,
-    [body.username, hashedPass],
+    [data.username, hashedPass],
   );
   if (insertRes.isError()) {
     return insertRes;

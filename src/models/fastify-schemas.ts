@@ -8,3 +8,13 @@ export const loginSchema = {
     required: ["username", "password"],
   },
 };
+
+export const roomsDirectPostSchema = {
+  body: {
+    type: "object",
+    properties: {
+      username: { type: "string" },
+    },
+    required: ["username"],
+  },
+};
