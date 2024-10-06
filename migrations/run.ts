@@ -40,17 +40,21 @@ async function executeSqlFile(
 
   let up = false;
   let down = false;
+  let mock = false;
 
   for (let i = 0; i < process.argv.length; i++) {
     const arg = process.argv[i];
 
-    if (arg === "--up") {
+    if (arg === "--up" || arg === "--reset") {
       up = true;
-    } else if (arg === "--down") {
+    }
+
+    if (arg === "--down" || arg === "--reset") {
       down = true;
-    } else if (arg === "--reset") {
-      up = true;
-      down = true;
+    }
+
+    if (arg === "--mock") {
+      mock = true;
     }
   }
 
@@ -65,7 +69,7 @@ async function executeSqlFile(
   if (down) {
     const downRes = await executeSqlFile(conn, "./migrations/down.sql");
     if (downRes.isError()) {
-      console.log(downRes);
+      console.log("Down:", downRes);
       process.exit(1);
     }
   }
@@ -73,14 +77,22 @@ async function executeSqlFile(
   if (up) {
     const upRes = await executeSqlFile(conn, "./migrations/up.sql");
     if (upRes.isError()) {
-      console.log(upRes);
+      console.log("Up:", upRes);
+      process.exit(1);
+    }
+  }
+
+  if (mock) {
+    const mockRes = await executeSqlFile(conn, "./migrations/mock.sql");
+    if (mockRes.isError()) {
+      console.log("Mock:", mockRes);
       process.exit(1);
     }
   }
 
   const commitRes = await conn.commit();
   if (commitRes.isError()) {
-    console.log(commitRes);
+    console.log("Commit:", commitRes);
     process.exit(1);
   }
 
