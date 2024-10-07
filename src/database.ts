@@ -18,7 +18,7 @@ async function genericQuery<T>(
 ): Promise<Result<T, Error>> {
   return Result.try(async () => {
     const [result, _fields] = await conn.query(q, params);
-    console.log("DB query res:", result);
+    // console.log("DB query res:", result);
     return result as T;
   });
 }

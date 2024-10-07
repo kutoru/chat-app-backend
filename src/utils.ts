@@ -10,6 +10,8 @@ export function handleError(response: FastifyReply, error: Error) {
     case AppError.InvalidCredentialsFormat:
     case AppError.UserExists:
     case AppError.UserDoesNotExist:
+    case AppError.InvalidFileType:
+    case AppError.SelfChatIsNotSupported:
       code = 400;
       message = error.message;
       break;

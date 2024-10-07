@@ -72,7 +72,17 @@ async function register(data: { username: string; password: string }) {
   return tokenRes;
 }
 
+async function get(userId: number) {
+  const userResult = await poolQuery<Omit<User, "id" | "password" | "role">[]>(
+    "SELECT username, profile_image, created FROM users WHERE id = ?;",
+    [userId],
+  );
+
+  return userResult.map((v) => v[0]);
+}
+
 export default {
   login,
   register,
+  get,
 };

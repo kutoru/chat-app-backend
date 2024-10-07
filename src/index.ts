@@ -10,14 +10,13 @@ import {
 import fastifyCookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import { roomsDirectPostSchema, loginSchema } from "./models/fastify-schemas";
-import {
-  adminMiddleware,
-  authMiddleware,
-  loginPost,
-  registerPost,
-} from "./routes/users";
-import { filesGet } from "./routes/files";
+import { loginPost, registerPost, usersGet } from "./routes/users";
+import { filesGet, filesPfpPost } from "./routes/files";
 import { roomsDirectPost } from "./routes/rooms";
+import fastifyWebsocket from "@fastify/websocket";
+import { wsGet } from "./websocket";
+import fastifyMultipart from "@fastify/multipart";
+import { adminMiddleware, authMiddleware, logMiddleware } from "./middleware";
 
 const FRONTEND_URL = process.env.FRONTEND_URL!;
 
@@ -30,24 +29,29 @@ declare module "fastify" {
 const app = fastify();
 app.decorateRequest("userId", null);
 app.register(fastifyCookie);
+app.register(fastifyWebsocket);
+app.register(fastifyMultipart);
 app.register(cors, {
   origin: [FRONTEND_URL],
   allowedHeaders: ["Content-Type"],
   credentials: true,
 });
 
-async function logMiddleware(request: FastifyRequest, response: FastifyReply) {
-  console.log(request.method, request.url);
-}
-
 async function publicRoutes(fastify: FastifyInstance, _opts: any) {
   fastify.post("/login", { schema: loginSchema }, loginPost);
   fastify.post("/register", { schema: loginSchema }, registerPost);
 }
 
-async function privateRoutes(fastify: FastifyInstance, _opts: any) {
+async function privateRoutes(
+  fastify: FastifyInstance,
+  _opts: any,
+  done: (err?: Error) => void,
+) {
   fastify.addHook("preHandler", authMiddleware);
 
+  fastify.get("/users", usersGet);
+
+  fastify.post("/files/pfp", filesPfpPost);
   fastify.get("/files/:fileHash", filesGet);
 
   fastify.post(
@@ -55,6 +59,10 @@ async function privateRoutes(fastify: FastifyInstance, _opts: any) {
     { schema: roomsDirectPostSchema },
     roomsDirectPost,
   );
+
+  fastify.get("/ws", { websocket: true }, wsGet);
+
+  done();
 }
 
 async function adminRoutes(fastify: FastifyInstance, _opts: any) {
@@ -62,7 +70,7 @@ async function adminRoutes(fastify: FastifyInstance, _opts: any) {
   fastify.addHook("preHandler", adminMiddleware);
 
   fastify.get(
-    "/users",
+    "/users/all",
     async (request: FastifyRequest, response: FastifyReply) => {
       return response.send({ data: "Some users data" });
     },
