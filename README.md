@@ -1,3 +1,5 @@
+The frontend for this application can be found [here](https://github.com/kutoru/chat-app-frontend).
+
 To run this backend, create a `.env` file and fill it out according to the following format:
 ```
 DB_USER=admin
@@ -23,3 +25,5 @@ Run the app in the watch mode with
 ```
 npm run dev
 ```
+
+Check out `package.json` for other script commands
