@@ -33,7 +33,11 @@ const app = fastify();
 app.decorateRequest("userId", null);
 app.register(fastifyCookie);
 app.register(fastifyWebsocket);
-app.register(fastifyMultipart);
+app.register(fastifyMultipart, {
+  limits: {
+    fileSize: 1024 * 1024 * 10, // 10MB
+  },
+});
 app.register(cors, {
   origin: [FRONTEND_URL],
   allowedHeaders: ["Content-Type"],

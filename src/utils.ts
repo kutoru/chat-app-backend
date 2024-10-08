@@ -16,6 +16,8 @@ export function handleError(response: FastifyReply, error: Error) {
       code = 400;
       message = error.message;
       break;
+    default:
+      console.log("Unknown error:", error);
   }
 
   return response.code(code).send({ message });

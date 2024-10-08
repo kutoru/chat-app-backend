@@ -7,6 +7,7 @@ import { Result } from "typescript-result";
 import AppError from "../models/AppError";
 import { poolQuery } from "../database";
 
+// cache locked files
 sharp.cache(false);
 
 const INVALID_FILE_TYPE_ERR = new Error(AppError.InvalidFileType);
