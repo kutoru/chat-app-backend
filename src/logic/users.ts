@@ -81,8 +81,27 @@ async function usersGet(userId: number) {
   return userResult.map((v) => v[0]);
 }
 
+async function isAdmin(userId: number) {
+  const roleRes = await poolQuery<{ role: "user" | "admin" }[]>(
+    "SELECT role FROM users WHERE id = ?;",
+    [userId],
+  );
+
+  return roleRes.map((v) => v[0].role === "admin");
+}
+
+async function usersAllGet() {
+  const userRes = await poolQuery<{ id: number; username: string }>(
+    "SELECT id, username FROM users;",
+  );
+
+  return userRes;
+}
+
 export default {
   login,
   register,
   usersGet,
+  isAdmin,
+  usersAllGet,
 };

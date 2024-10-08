@@ -1,11 +1,20 @@
+import users from "./logic/users";
 import { validateToken } from "./tokens";
 import { FastifyReply, FastifyRequest } from "fastify";
+import { handleError } from "./utils";
 
-export async function logMiddleware(
+export async function logMiddlewarePre(
   request: FastifyRequest,
   response: FastifyReply,
 ) {
   console.log(request.method, request.url);
+}
+
+export async function logMiddlewarePost(
+  request: FastifyRequest,
+  response: FastifyReply,
+) {
+  console.log("Response:", response.statusCode);
 }
 
 export async function authMiddleware(
@@ -15,8 +24,6 @@ export async function authMiddleware(
   const tokenRes = request.cookies.t
     ? await validateToken(request.cookies.t)
     : undefined;
-
-  console.log("Request cookies:", request.cookies, tokenRes);
 
   if (!tokenRes || tokenRes?.isError()) {
     return response.code(401).send({ message: "Invalid auth token" });
@@ -29,9 +36,13 @@ export async function adminMiddleware(
   request: FastifyRequest,
   response: FastifyReply,
 ) {
-  // call the db and check if this user is an admin
-  //   const result = await users.checkAdmin(request.userId!);
-  //   console.log("Admin res:", request.userId, result);
+  const result = await users.isAdmin(request.userId!);
+  if (result.isError()) {
+    return handleError(response, result.error);
+  }
 
-  return response.code(403).send({ message: "Forbidden" });
+  const authorized = result.getOrThrow();
+  if (!authorized) {
+    return response.code(403).send({ message: "Forbidden" });
+  }
 }

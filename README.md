@@ -5,6 +5,7 @@ DB_PASS=admin
 DB_NAME=chat_app
 TOKEN_TTL=600
 TOKEN_SECRET=token_secret
+FRONTEND_URL=http://127.0.0.1:5173
 MAX_FILE_SIZE_IN_MB=10
 ```
 

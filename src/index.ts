@@ -1,22 +1,22 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import {
-  FastifyInstance,
-  FastifyReply,
-  FastifyRequest,
-  fastify,
-} from "fastify";
+import { FastifyInstance, fastify } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import { roomsDirectPostSchema, loginSchema } from "./models/fastify-schemas";
-import { loginPost, registerPost, usersGet } from "./routes/users";
+import { loginPost, registerPost, usersAllGet, usersGet } from "./routes/users";
 import { filesGet, filesPfpPost } from "./routes/files";
 import { roomsDirectPost, roomsGet, roomsIdGet } from "./routes/rooms";
 import fastifyWebsocket from "@fastify/websocket";
 import { wsGet } from "./websocket";
 import fastifyMultipart from "@fastify/multipart";
-import { adminMiddleware, authMiddleware, logMiddleware } from "./middleware";
+import {
+  adminMiddleware,
+  authMiddleware,
+  logMiddlewarePost,
+  logMiddlewarePre,
+} from "./middleware";
 import { initializeDirectories } from "./utils";
 
 const FRONTEND_URL = process.env.FRONTEND_URL!;
@@ -79,20 +79,16 @@ async function adminRoutes(fastify: FastifyInstance, _opts: any) {
   fastify.addHook("preHandler", authMiddleware);
   fastify.addHook("preHandler", adminMiddleware);
 
-  fastify.get(
-    "/users/all",
-    async (request: FastifyRequest, response: FastifyReply) => {
-      return response.send({ data: "Some users data" });
-    },
-  );
+  fastify.get("/users/all", usersAllGet);
 }
 
-app.addHook("preHandler", logMiddleware);
+app.addHook("preHandler", logMiddlewarePre);
+app.addHook("onSend", logMiddlewarePost);
 app.register(publicRoutes);
 app.register(privateRoutes);
 app.register(adminRoutes);
 
 (async () => {
-  const res = await app.listen({ port: 3030, host: "0.0.0.0" });
-  console.log("Listening at", res);
+  await app.listen({ port: 3030, host: "0.0.0.0" });
+  console.log("Listening at port", 3030);
 })();
