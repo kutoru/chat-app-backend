@@ -17,8 +17,11 @@ import fastifyWebsocket from "@fastify/websocket";
 import { wsGet } from "./websocket";
 import fastifyMultipart from "@fastify/multipart";
 import { adminMiddleware, authMiddleware, logMiddleware } from "./middleware";
+import { initializeDirectories } from "./utils";
 
 const FRONTEND_URL = process.env.FRONTEND_URL!;
+
+initializeDirectories();
 
 declare module "fastify" {
   interface FastifyRequest {

@@ -53,7 +53,7 @@ async function executeSqlFile(
       down = true;
     }
 
-    if (arg === "--mock") {
+    if (arg === "--mock" || arg === "--reset") {
       mock = true;
     }
   }

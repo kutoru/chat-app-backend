@@ -1,5 +1,6 @@
 import { FastifyReply } from "fastify";
 import AppError from "./models/AppError";
+import fsSync from "fs";
 
 export function handleError(response: FastifyReply, error: Error) {
   let code = 500;
@@ -18,4 +19,8 @@ export function handleError(response: FastifyReply, error: Error) {
   }
 
   return response.code(code).send({ message });
+}
+
+export function initializeDirectories() {
+  fsSync.mkdirSync("./files/temp", { recursive: true });
 }
