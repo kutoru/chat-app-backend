@@ -1,11 +1,9 @@
-import UserRole from "./UserRole";
-
 type User = {
   id: number;
   username: string;
   password: string;
   profile_image?: string;
-  role: UserRole;
+  role: "user" | "admin";
   created: number;
 };
 

@@ -58,14 +58,14 @@ async function roomsGet(userId: number) {
   return Result.ok(rooms);
 }
 
-async function createDirectChat(
+async function roomsDirectPost(
   fromUserId: number,
   toUsername: string,
 ): Promise<Result<Room, Error>> {
   // getting user id from the username
 
   const usernameResult = await poolQuery<{ id: number }[]>(
-    "SELECT id FROM users WHERE username = ?",
+    "SELECT id FROM users WHERE username = ?;",
     [toUsername],
   );
   if (usernameResult.isError()) {
@@ -83,7 +83,7 @@ async function createDirectChat(
 
   // check if the room already exists, and send it out if it does
 
-  const roomResult = await getDirectRoom(fromUserId, toUserId);
+  const roomResult = await getDirectRoomFromUserId(fromUserId, toUserId);
   if (roomResult.isError() || roomResult.value !== undefined) {
     //@ts-ignore
     return roomResult;
@@ -108,8 +108,11 @@ async function createDirectChat(
   const roomId = roomInsertRes.getOrThrow().insertId;
 
   const userInsertRes = await conn.query(
-    "INSERT INTO user_rooms (user_id, room_id) VALUES (?, ?), (?, ?);",
-    [fromUserId, roomId, toUserId, roomId],
+    "INSERT INTO user_rooms (user_id, room_id) VALUES (?), (?);",
+    [
+      [fromUserId, roomId],
+      [toUserId, roomId],
+    ],
   );
   if (userInsertRes.isError()) {
     return userInsertRes;
@@ -128,70 +131,93 @@ async function createDirectChat(
     return commitRes;
   }
 
+  // TODO: send the message that has been inserted to all relevant websocket clients
+
   // send the new room
 
-  const newRoomRes = await getDirectRoom(fromUserId, toUserId, roomId);
+  const newRoomRes = await getDirectRoomFromRoomId(roomId, toUserId);
   if (newRoomRes.isError()) {
     return newRoomRes;
   }
 
   if (newRoomRes.value === undefined) {
-    return Result.error(new Error("Inserted the room but could not get it"));
+    return Result.error(
+      new Error("Inserted a direct room but could not get it"),
+    );
   }
 
   //@ts-ignore
   return newRoomRes;
 }
 
-async function getDirectRoom(
+async function getDirectRoomFromUserId(
   fromUserId: number,
   toUserId: number,
-  roomId: number | undefined = undefined,
 ): Promise<Result<Room | undefined, Error>> {
-  let roomField;
-  let params;
-
-  if (roomId) {
-    roomField = "id";
-    params = [roomId, fromUserId, toUserId];
-  } else {
-    roomField = "type";
-    params = ["direct", fromUserId, toUserId];
-  }
-
   const roomResult = await poolQuery<
-    (Room & { user_id?: number; user_name?: string; profile_image?: string })[]
+    (Room & { username?: string; profile_image?: string })[]
   >(
     `SELECT
-      rooms.*, users.id AS user_id, users.username, users.profile_image
-    FROM rooms
-    LEFT JOIN user_rooms ON rooms.id = user_rooms.room_id
+      filtered_rooms.*, users.username, users.profile_image
+    FROM (
+      SELECT rooms.* FROM rooms
+      LEFT JOIN user_rooms ON user_rooms.room_id = rooms.id
+      WHERE rooms.type = 'direct' AND user_rooms.user_id = ?
+    ) AS filtered_rooms
+    LEFT JOIN user_rooms ON user_rooms.room_id = filtered_rooms.id
     LEFT JOIN users ON users.id = user_rooms.user_id
-    WHERE rooms.${roomField} = ? AND (users.id = ? OR users.id = ?);`,
-    params,
+    WHERE users.id = ?;`,
+    [fromUserId, toUserId],
   );
+
   if (roomResult.isError()) {
     return roomResult;
   }
 
-  const rooms = roomResult.getOrThrow();
-  if (rooms.length === 0) {
-    return Result.ok(undefined);
+  const room = roomResult.getOrThrow()[0];
+  if (!room) {
+    return Result.ok(room);
   }
-
-  if (rooms.length !== 2) {
-    return Result.error(new Error("Didn't get two users for a direct room"));
-  }
-
-  const room = rooms.find((r) => r.user_id === toUserId)!;
 
   room.cover_image = room.profile_image;
   room.profile_image = undefined;
-  room.name = room.user_name;
-  room.user_name = undefined;
-  room.user_id = undefined;
+  room.name = room.username;
+  room.username = undefined;
 
   return Result.ok(room);
 }
 
-export default { createDirectChat, roomsGet };
+async function getDirectRoomFromRoomId(
+  roomId: number,
+  toUserId: number,
+): Promise<Result<Room | undefined, Error>> {
+  const roomResult = await poolQuery<
+    (Room & { username?: string; profile_image?: string })[]
+  >(
+    `SELECT
+      rooms.*, users.username, users.profile_image
+    FROM rooms
+    LEFT JOIN user_rooms ON user_rooms.room_id = rooms.id
+    LEFT JOIN users ON users.id = user_rooms.user_id
+    WHERE rooms.id = ? AND users.id = ?;`,
+    [roomId, toUserId],
+  );
+
+  if (roomResult.isError()) {
+    return roomResult;
+  }
+
+  const room = roomResult.getOrThrow()[0];
+  if (!room) {
+    return Result.ok(room);
+  }
+
+  room.cover_image = room.profile_image;
+  room.profile_image = undefined;
+  room.name = room.username;
+  room.username = undefined;
+
+  return Result.ok(room);
+}
+
+export default { roomsDirectPost, roomsGet };

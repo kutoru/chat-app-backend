@@ -52,7 +52,7 @@ export async function usersGet(
   request: FastifyRequest,
   response: FastifyReply,
 ) {
-  const result = await users.get(request.userId!);
+  const result = await users.usersGet(request.userId!);
   console.log("usersGet res:", result);
 
   if (result.isError()) {

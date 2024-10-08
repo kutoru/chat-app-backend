@@ -27,7 +27,7 @@ export async function roomsDirectPost(
     return response.code(500).send({ message: "Server error" });
   }
 
-  const result = await rooms.createDirectChat(
+  const result = await rooms.roomsDirectPost(
     request.userId,
     request.body.username,
   );
