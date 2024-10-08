@@ -6,34 +6,38 @@ export async function roomsGet(
   request: FastifyRequest,
   response: FastifyReply,
 ) {
-  if (!request.userId) {
-    return response.code(500).send({ message: "Server error" });
+  const result = await rooms.roomsGet(request.userId!);
+  if (result.isError()) {
+    return handleError(response, result.error);
   }
 
-  const result = await rooms.roomsGet(request.userId);
-  console.log("roomsGet", result);
-  //   if (result.isError()) {
-  //     return handleError(response, result.errorOrNull()!!);
-  //   }
+  return response.send({ data: result.getOrThrow() });
+}
 
-  //   return response.send(result.getOrThrow());
+export async function roomsIdGet(
+  request: FastifyRequest<{ Params: { id: number } }>,
+  response: FastifyReply,
+) {
+  const roomId = request.params.id;
+
+  const result = await rooms.roomsIdGet(request.userId!, roomId);
+  if (result.isError()) {
+    return handleError(response, result.error);
+  }
+
+  return response.send({ data: result.getOrThrow() });
 }
 
 export async function roomsDirectPost(
   request: FastifyRequest<{ Body: { username: string } }>,
   response: FastifyReply,
 ) {
-  if (!request.userId) {
-    return response.code(500).send({ message: "Server error" });
-  }
-
   const result = await rooms.roomsDirectPost(
-    request.userId,
+    request.userId!,
     request.body.username,
   );
-  console.log("roomsDirectPost", result);
   if (result.isError()) {
-    return handleError(response, result.errorOrNull()!!);
+    return handleError(response, result.error);
   }
 
   const room = result.getOrThrow();

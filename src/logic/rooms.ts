@@ -9,53 +9,88 @@ const USER_DOES_NOT_EXIST_ERR = new Error(AppError.UserDoesNotExist);
 const SELF_CHAT_ERR = new Error(AppError.SelfChatIsNotSupported);
 
 async function roomsGet(userId: number) {
-  const directRoomRes = await poolQuery<RoomPreview[]>(
+  const roomsRes = await poolQuery<RoomPreview[]>(
     `SELECT
-      rooms.id, users.username AS name, users.profile_image AS cover_image, rooms.type, rooms.created, msg.created AS message_created, msg.text AS message_text
-    FROM rooms
-    LEFT JOIN user_rooms ON user_rooms.room_id = rooms.id
-    LEFT JOIN (
+      fil_rooms.id, fil_rooms.type, fil_rooms.created,
+      display_data.name, display_data.cover_image,
+      msg.created AS message_created, msg.text AS message_text
+
+    # getting user rooms
+
+    FROM (
+      SELECT rooms.* FROM rooms
+      LEFT JOIN user_rooms ON user_rooms.room_id = rooms.id
+      WHERE user_rooms.user_id = ?
+    ) AS fil_rooms
+
+    # getting the latest message for each room
+
+    INNER JOIN (
       SELECT * FROM messages WHERE messages.id IN (
         SELECT MAX(messages.id) FROM messages GROUP BY messages.room_id
       )
-    ) AS msg ON msg.room_id = rooms.id
-    LEFT JOIN users ON users.id != ? AND users.id IN (
-      SELECT user_id FROM user_rooms WHERE user_rooms.room_id = rooms.id
-    )
-    WHERE rooms.type = 'direct' AND user_rooms.user_id = ?
-    ORDER BY rooms.created DESC;`,
+    ) AS msg ON msg.room_id = fil_rooms.id
+
+    # if the room type is 'group' (or if it is 'direct')
+    # getting room name (or the other user's name)
+    # and the room cover (or the other user's pfp)
+
+    INNER JOIN (
+      (
+        SELECT rooms.id AS room_id, rooms.name, rooms.cover_image
+        FROM rooms WHERE rooms.type = 'group'
+      ) UNION (
+        SELECT user_rooms.room_id, users.username AS name, users.profile_image AS cover_image
+        FROM rooms
+        INNER JOIN user_rooms ON user_rooms.room_id = rooms.id
+        INNER JOIN users ON users.id = user_rooms.user_id
+        WHERE rooms.type = 'direct' AND users.id != ?
+      )
+    ) AS display_data ON display_data.room_id = fil_rooms.id
+
+    ORDER BY fil_rooms.created DESC;`,
     [userId, userId],
   );
-  if (directRoomRes.isError()) {
-    return directRoomRes;
-  }
 
-  const groupRoomRes = await poolQuery<RoomPreview[]>(
+  return roomsRes;
+}
+
+async function roomsIdGet(userId: number, roomId: number) {
+  const roomResult = await poolQuery<RoomPreview[]>(
     `SELECT
-      rooms.id, rooms.name, rooms.cover_image, rooms.type, rooms.created, msg.created AS message_created, msg.text AS message_text
-    FROM rooms
-    LEFT JOIN user_rooms ON user_rooms.room_id = rooms.id
-    LEFT JOIN (
+      fil_rooms.id, fil_rooms.type, fil_rooms.created,
+      display_data.name, display_data.cover_image,
+      msg.created AS message_created, msg.text AS message_text
+
+    FROM (
+      SELECT rooms.* FROM rooms
+      LEFT JOIN user_rooms ON user_rooms.room_id = rooms.id
+      WHERE rooms.id = ? AND user_rooms.user_id = ?
+    ) AS fil_rooms
+
+    INNER JOIN (
       SELECT * FROM messages WHERE messages.id IN (
         SELECT MAX(messages.id) FROM messages GROUP BY messages.room_id
       )
-    ) AS msg ON msg.room_id = rooms.id
-    WHERE rooms.type = 'group' AND user_rooms.user_id = ?
-    ORDER BY rooms.created DESC;`,
-    [userId, userId],
+    ) AS msg ON msg.room_id = fil_rooms.id
+
+    INNER JOIN (
+        (SELECT rooms.id AS room_id, rooms.name, rooms.cover_image
+        FROM rooms
+        WHERE rooms.type = 'group')
+      UNION
+        (SELECT user_rooms.room_id, users.username AS name, users.profile_image AS cover_image
+        FROM rooms
+        INNER JOIN user_rooms ON user_rooms.room_id = rooms.id
+        INNER JOIN users ON users.id = user_rooms.user_id
+        WHERE rooms.type = 'direct' AND users.id != ?)
+    ) AS display_data ON display_data.room_id = fil_rooms.id
+
+    ORDER BY fil_rooms.created DESC;`,
+    [roomId, userId, userId],
   );
-  if (groupRoomRes.isError()) {
-    return groupRoomRes;
-  }
 
-  const directRooms = directRoomRes.getOrThrow();
-  const groupRooms = groupRoomRes.getOrThrow();
-
-  const rooms = directRooms
-    .concat(groupRooms)
-    .sort((a, b) => b.message_created - a.message_created);
-
-  return Result.ok(rooms);
+  return roomResult.map((v) => v[0]);
 }
 
 async function roomsDirectPost(
@@ -164,8 +199,8 @@ async function getDirectRoomFromUserId(
       LEFT JOIN user_rooms ON user_rooms.room_id = rooms.id
       WHERE rooms.type = 'direct' AND user_rooms.user_id = ?
     ) AS filtered_rooms
-    LEFT JOIN user_rooms ON user_rooms.room_id = filtered_rooms.id
-    LEFT JOIN users ON users.id = user_rooms.user_id
+    INNER JOIN user_rooms ON user_rooms.room_id = filtered_rooms.id
+    INNER JOIN users ON users.id = user_rooms.user_id
     WHERE users.id = ?;`,
     [fromUserId, toUserId],
   );
@@ -197,8 +232,8 @@ async function getDirectRoomFromRoomId(
     `SELECT
       rooms.*, users.username, users.profile_image
     FROM rooms
-    LEFT JOIN user_rooms ON user_rooms.room_id = rooms.id
-    LEFT JOIN users ON users.id = user_rooms.user_id
+    INNER JOIN user_rooms ON user_rooms.room_id = rooms.id
+    INNER JOIN users ON users.id = user_rooms.user_id
     WHERE rooms.id = ? AND users.id = ?;`,
     [roomId, toUserId],
   );
@@ -220,4 +255,4 @@ async function getDirectRoomFromRoomId(
   return Result.ok(room);
 }
 
-export default { roomsDirectPost, roomsGet };
+export default { roomsGet, roomsIdGet, roomsDirectPost };
