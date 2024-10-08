@@ -4,6 +4,8 @@ import AppError from "../models/AppError";
 import Room from "../models/Room";
 import { ResultSetHeader } from "mysql2/promise";
 import RoomPreview from "../models/RoomPreview";
+import messages from "./messages";
+import { sendMessage } from "../websocket";
 
 const USER_DOES_NOT_EXIST_ERR = new Error(AppError.UserDoesNotExist);
 const SELF_CHAT_ERR = new Error(AppError.SelfChatIsNotSupported);
@@ -153,7 +155,7 @@ async function roomsDirectPost(
     return userInsertRes;
   }
 
-  const messageInsertRes = await conn.query(
+  const messageInsertRes = await conn.query<ResultSetHeader>(
     "INSERT INTO messages (room_id, text) VALUES (?, 'Chat has been created');",
     [roomId],
   );
@@ -161,14 +163,28 @@ async function roomsDirectPost(
     return messageInsertRes;
   }
 
+  const messageId = messageInsertRes.getOrThrow().insertId;
+
   const commitRes = await conn.commit();
   if (commitRes.isError()) {
     return commitRes;
   }
 
-  // TODO: send the message that has been inserted to all relevant websocket clients
+  // send the system message to all relevant clients
 
-  // send the new room
+  const messageRes = await messages.getSystemMessage(messageId);
+  if (messageRes.isError()) {
+    console.warn("Could not get a new system message", messageRes);
+  } else {
+    const newMessage = messageRes.getOrThrow();
+
+    const sendRes = await sendMessage(newMessage);
+    if (sendRes.isError()) {
+      console.warn("Could not send a new system message", sendRes);
+    }
+  }
+
+  // respond with the new room
 
   const newRoomRes = await getDirectRoomFromRoomId(roomId, toUserId);
   if (newRoomRes.isError()) {

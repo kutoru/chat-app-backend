@@ -5,6 +5,7 @@ enum AppError {
   UserDoesNotExist = "This user does not exist",
   SelfChatIsNotSupported = "You cannot chat with yourself",
   InvalidFileType = "Invalid file type",
+  Forbidden = "Forbidden",
 }
 
 export default AppError;

@@ -53,7 +53,6 @@ export async function roomsIdMessagesGet(
   const roomId = request.params.id;
 
   const result = await messages.messagesGet(request.userId!, roomId);
-  console.log("msgs:", result);
   if (result.isError()) {
     return handleError(response, result.error);
   }
