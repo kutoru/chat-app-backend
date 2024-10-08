@@ -5,6 +5,7 @@ DB_PASS=admin
 DB_NAME=chat_app
 TOKEN_TTL=600
 TOKEN_SECRET=token_secret
+MAX_FILE_SIZE_IN_MB=10
 ```
 
 Then, install the dependencies with

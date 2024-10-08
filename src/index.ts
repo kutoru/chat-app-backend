@@ -20,6 +20,7 @@ import { adminMiddleware, authMiddleware, logMiddleware } from "./middleware";
 import { initializeDirectories } from "./utils";
 
 const FRONTEND_URL = process.env.FRONTEND_URL!;
+const MAX_FILE_SIZE_IN_MB = Number(process.env.MAX_FILE_SIZE_IN_MB);
 
 initializeDirectories();
 
@@ -35,7 +36,7 @@ app.register(fastifyCookie);
 app.register(fastifyWebsocket);
 app.register(fastifyMultipart, {
   limits: {
-    fileSize: 1024 * 1024 * 10, // 10MB
+    fileSize: 1024 * 1024 * MAX_FILE_SIZE_IN_MB,
   },
 });
 app.register(cors, {
