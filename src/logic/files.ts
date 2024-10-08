@@ -17,6 +17,8 @@ async function pfpPost(userId: number, data: MultipartFile) {
     return Result.error(INVALID_FILE_TYPE_ERR);
   }
 
+  // saving the full image
+
   const hash = crypto.randomUUID();
   const tempPath = "./files/temp/" + hash;
 
@@ -36,6 +38,8 @@ async function pfpPost(userId: number, data: MultipartFile) {
   const fileName = hash + "." + fileExt;
   const filePath = "./files/" + fileName;
 
+  // resizing & cropping
+
   const resizeRes = await Result.try(async () => {
     return await sharp(tempPath)
       .resize(128, 128, { fit: "cover" })
@@ -48,6 +52,22 @@ async function pfpPost(userId: number, data: MultipartFile) {
     return resizeRes;
   }
 
+  // getting the old image to delete it later
+
+  const oldImageRes = await poolQuery<{ profile_image: string }[]>(
+    "SELECT profile_image FROM users WHERE id = ?;",
+    [userId],
+  );
+
+  let oldImage = undefined;
+  if (oldImageRes.isError()) {
+    console.warn("Could not get previous user image");
+  } else {
+    oldImage = oldImageRes.getOrThrow()[0]?.profile_image;
+  }
+
+  // updating the db
+
   const updateRes = await poolQuery(
     "UPDATE users SET profile_image = ? WHERE id = ?;",
     [fileName, userId],
@@ -55,6 +75,10 @@ async function pfpPost(userId: number, data: MultipartFile) {
   if (updateRes.isError()) {
     deleteFile(filePath);
     return updateRes;
+  }
+
+  if (oldImage) {
+    deleteFile("./files/" + oldImage);
   }
 
   return Result.ok(fileName);
