@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import rooms from "../logic/rooms";
 import { handleError } from "../utils";
+import messages from "../logic/messages";
 
 export async function roomsGet(
   request: FastifyRequest,
@@ -43,4 +44,19 @@ export async function roomsDirectPost(
   const room = result.getOrThrow();
 
   return response.send({ data: room });
+}
+
+export async function roomsIdMessagesGet(
+  request: FastifyRequest<{ Params: { id: number } }>,
+  response: FastifyReply,
+) {
+  const roomId = request.params.id;
+
+  const result = await messages.messagesGet(request.userId!, roomId);
+  console.log("msgs:", result);
+  if (result.isError()) {
+    return handleError(response, result.error);
+  }
+
+  return response.send({ data: result.getOrThrow() });
 }
