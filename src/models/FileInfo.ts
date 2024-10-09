@@ -1,4 +1,4 @@
-type File = {
+type FileInfo = {
   id: number;
   message_id: number;
   message_index: number;
@@ -7,4 +7,4 @@ type File = {
   created: number;
 };
 
-export default File;
+export default FileInfo;

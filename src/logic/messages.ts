@@ -1,7 +1,7 @@
 import { Result } from "typescript-result";
 import { poolQuery } from "../database";
 import ClientMessage from "../models/ClientMessage";
-import File from "../models/File";
+import FileInfo from "../models/FileInfo";
 import { ResultSetHeader } from "mysql2";
 import PendingMessage from "../models/PendingMessage";
 import AppError from "../models/AppError";
@@ -33,7 +33,7 @@ async function messagesGet(userId: number, roomId: number) {
 
   for (let i = 0; i < messages.length; i++) {
     filePromises.push(
-      poolQuery<File[]>(
+      poolQuery<FileInfo[]>(
         `SELECT * FROM files WHERE message_id = ?
         ORDER BY message_id DESC, message_index ASC;`,
         [messages[i].id],

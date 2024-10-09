@@ -6,7 +6,7 @@ import fastifyCookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import { roomsDirectPostSchema, loginSchema } from "./models/fastify-schemas";
 import { loginPost, registerPost, usersAllGet, usersGet } from "./routes/users";
-import { filesGet, filesPfpPost } from "./routes/files";
+import { filesGet, filesMessagePost, filesPfpPost } from "./routes/files";
 import {
   roomsDirectPost,
   roomsGet,
@@ -65,6 +65,7 @@ async function privateRoutes(
   fastify.get("/users", usersGet);
 
   fastify.post("/files/pfp", filesPfpPost);
+  fastify.post("/files/message/:messageId", filesMessagePost);
   fastify.get("/files/:fileHash", filesGet);
 
   fastify.get("/rooms", roomsGet);

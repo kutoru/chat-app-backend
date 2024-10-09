@@ -13,7 +13,12 @@ export function handleError(response: FastifyReply, error: Error) {
     case AppError.UserDoesNotExist:
     case AppError.InvalidFileType:
     case AppError.SelfChatIsNotSupported:
+    case AppError.InvalidFields:
       code = 400;
+      message = error.message;
+      break;
+    case AppError.Forbidden:
+      code = 403;
       message = error.message;
       break;
     default:
@@ -25,4 +30,12 @@ export function handleError(response: FastifyReply, error: Error) {
 
 export function initializeDirectories() {
   fsSync.mkdirSync("./files/temp", { recursive: true });
+}
+
+export function parseNumber(val: string) {
+  try {
+    return Number(val);
+  } catch (error) {
+    return undefined;
+  }
 }

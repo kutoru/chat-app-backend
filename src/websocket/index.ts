@@ -5,8 +5,14 @@ import ClientMessage from "../models/ClientMessage";
 import messages from "../logic/messages";
 import PendingMessage from "../models/PendingMessage";
 import { Result } from "typescript-result";
+import FileInfo from "../models/FileInfo";
 
-const connections = new Map<number, (message: ClientMessage) => void>();
+const connections = new Map<number, (message: WebSocketMessage) => void>();
+
+type WebSocketMessage = {
+  type: "message" | "files";
+  data: ClientMessage | FileInfo[];
+};
 
 function isPendingMessage(message: any): message is PendingMessage {
   return (
@@ -22,13 +28,13 @@ export async function wsGet(conn: WebSocket, request: FastifyRequest) {
   }
 
   const userId = request.userId;
+
   conn.on("message", async (rawMsg) => {
     const msg = rawMsg.toString();
-    console.log("onmessage", msg);
 
     if (msg === "ack") {
-      console.log("connected", userId);
-      connections.set(userId, (message: ClientMessage) => {
+      console.log("Socket connected", userId);
+      connections.set(userId, (message) => {
         conn.send(JSON.stringify(message));
       });
 
@@ -59,12 +65,12 @@ export async function wsGet(conn: WebSocket, request: FastifyRequest) {
   });
 
   conn.on("close", () => {
-    console.log("disconnected", userId);
+    console.log("Socket disconnected", userId);
     connections.delete(userId);
   });
 }
 
-export async function sendMessage(message: ClientMessage) {
+async function sendMessage(message: ClientMessage) {
   const userIdsRes = await poolQuery<{ user_id: number }[]>(
     "SELECT user_id FROM user_rooms WHERE room_id = ?;",
     [message.room_id],
@@ -80,9 +86,39 @@ export async function sendMessage(message: ClientMessage) {
     const sendToUser = connections.get(userId);
     if (sendToUser) {
       message.from_self = message.sender_id === userId;
-      sendToUser(message);
+      sendToUser({ type: "message", data: message });
     }
   }
 
   return Result.ok();
 }
+
+async function sendFiles(files: FileInfo[]) {
+  const userIdsRes = await poolQuery<{ user_id: number }[]>(
+    `SELECT user_rooms.user_id
+    FROM messages
+    INNER JOIN user_rooms ON user_rooms.room_id = messages.room_id
+    WHERE messages.id = ?;`,
+    [files[0].message_id],
+  );
+  if (userIdsRes.isError()) {
+    return userIdsRes;
+  }
+
+  const userIds = userIdsRes.getOrThrow();
+
+  for (let i = 0; i < userIds.length; i++) {
+    const userId = userIds[i].user_id;
+    const sendToUser = connections.get(userId);
+    if (sendToUser) {
+      sendToUser({ type: "files", data: files });
+    }
+  }
+
+  return Result.ok();
+}
+
+export default {
+  sendMessage,
+  sendFiles,
+};

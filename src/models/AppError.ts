@@ -6,6 +6,7 @@ enum AppError {
   SelfChatIsNotSupported = "You cannot chat with yourself",
   InvalidFileType = "Invalid file type",
   Forbidden = "Forbidden",
+  InvalidFields = "Invalid fields",
 }
 
 export default AppError;

@@ -6,13 +6,18 @@ import sharp from "sharp";
 import { Result } from "typescript-result";
 import AppError from "../models/AppError";
 import { poolQuery } from "../database";
+import fs from "fs/promises";
+import { ResultSetHeader } from "mysql2";
+import FileInfo from "../models/FileInfo";
+import websocket from "../websocket";
 
-// cache locked files
+// cache locks files
 sharp.cache(false);
 
 const INVALID_FILE_TYPE_ERR = new Error(AppError.InvalidFileType);
+const FORBIDDEN_ERR = new Error(AppError.Forbidden);
 
-async function pfpPost(userId: number, data: MultipartFile) {
+async function filesPfpPost(userId: number, data: MultipartFile) {
   if (!data.mimetype.startsWith("image/")) {
     return Result.error(INVALID_FILE_TYPE_ERR);
   }
@@ -84,14 +89,125 @@ async function pfpPost(userId: number, data: MultipartFile) {
   return Result.ok(fileName);
 }
 
+async function filesMessagePost(
+  userId: number,
+  messageId: number,
+  iter: AsyncIterableIterator<MultipartFile>,
+) {
+  // validate that the user is the message's owner
+
+  const messageRes = await poolQuery<{ id: number }[]>(
+    "SELECT id FROM messages WHERE id = ? AND sender_id = ?;",
+    [messageId, userId],
+  );
+  if (messageRes.isError()) {
+    return messageRes;
+  }
+
+  if (!messageRes.getOrThrow().length) {
+    return Result.error(FORBIDDEN_ERR);
+  }
+
+  // saving the files to disk
+
+  const insertData = [];
+
+  for (let i = 0; i < 50; i++) {
+    const data = await iter.next();
+    if (data.done) {
+      break;
+    }
+
+    const result = await saveMessageFile(messageId, i, data.value);
+    if (result.isError()) {
+      insertData.forEach((v) => deleteFile("/files/" + v[2]));
+      return result;
+    }
+
+    insertData.push(result.getOrThrow());
+  }
+
+  // inserting and sending the file data
+
+  const insertRes = await poolQuery<ResultSetHeader>(
+    "INSERT INTO files (message_id, message_index, file_hash, file_name) VALUES ?;",
+    [insertData],
+  );
+  if (insertRes.isError()) {
+    insertData.forEach((v) => deleteFile("/files/" + v[2]));
+    return insertRes;
+  }
+
+  const filesInfoRes = await poolQuery<FileInfo[]>(
+    "SELECT * FROM files WHERE message_id = ? AND files.message_index < ?;",
+    [messageId, insertData.length],
+  );
+  if (filesInfoRes.isError()) {
+    return filesInfoRes;
+  }
+
+  const sendRes = await websocket.sendFiles(filesInfoRes.getOrThrow());
+  if (sendRes.isError()) {
+    console.warn("Could not send the files info:", sendRes);
+  }
+
+  return Result.ok();
+}
+
+async function saveMessageFile(
+  messageId: number,
+  messageIndex: number,
+  data: MultipartFile,
+): Promise<Result<[number, number, string, string], Error>> {
+  // for now only images are allowed
+
+  if (!data.mimetype.startsWith("image/")) {
+    return Result.error(INVALID_FILE_TYPE_ERR);
+  }
+
+  const originalName = data.filename;
+
+  // saving the file
+
+  const tempHash = crypto.randomUUID();
+  const tempPath = "./files/" + tempHash;
+
+  const writeRes = await Result.try(
+    async () => await pipeline(data.file, fsSync.createWriteStream(tempPath)),
+  );
+  if (writeRes.isError()) {
+    return writeRes;
+  }
+
+  const fileExt = (await FileType.fromFile(tempPath))?.ext;
+  if (!fileExt) {
+    deleteFile(tempPath);
+    return Result.error(INVALID_FILE_TYPE_ERR);
+  }
+
+  // adding the extension
+
+  const hash = tempHash + "." + fileExt;
+  const path = tempPath + "." + fileExt;
+
+  const renameRes = await Result.try(async () => fs.rename(tempPath, path));
+  if (renameRes.isError()) {
+    deleteFile(tempPath);
+    return renameRes;
+  }
+
+  return Result.ok([messageId, messageIndex, hash, originalName]);
+}
+
 function deleteFile(path: string) {
   fsSync.unlink(path, (err) => {
     if (err) {
-      console.warn("Could not delete a temp file:", err);
+      console.warn("Could not delete a file:", err);
     }
   });
 }
 
 export default {
-  pfpPost,
+  filesPfpPost,
+  filesMessagePost,
 };

@@ -2,7 +2,7 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import fs from "fs/promises";
 import fsSync from "fs";
 import files from "../logic/files";
-import { handleError } from "../utils";
+import { handleError, parseNumber } from "../utils";
 
 export async function filesGet(
   request: FastifyRequest<{ Params: { fileHash: string } }>,
@@ -38,7 +38,7 @@ export async function filesPfpPost(
     return response.code(400).send({ message: "Invalid body" });
   }
 
-  const result = await files.pfpPost(request.userId!, data);
+  const result = await files.filesPfpPost(request.userId!, data);
   if (result.isError()) {
     return handleError(response, result.error);
   }
@@ -46,4 +46,25 @@ export async function filesPfpPost(
   const hash = result.getOrThrow();
 
   return response.send({ data: hash });
+}
+
+export async function filesMessagePost(
+  request: FastifyRequest<{ Params: { messageId: string } }>,
+  response: FastifyReply,
+) {
+  const messageId = parseNumber(request.params.messageId);
+  if (!messageId) {
+    return response.code(400).send({ message: "Invalid param" });
+  }
+
+  const result = await files.filesMessagePost(
+    request.userId!,
+    messageId,
+    request.files(),
+  );
+  if (result.isError()) {
+    return handleError(response, result.error);
+  }
+
+  return response.send({});
 }

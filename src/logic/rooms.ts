@@ -5,7 +5,7 @@ import Room from "../models/Room";
 import { ResultSetHeader } from "mysql2/promise";
 import RoomPreview from "../models/RoomPreview";
 import messages from "./messages";
-import { sendMessage } from "../websocket";
+import websocket from "../websocket";
 
 const USER_DOES_NOT_EXIST_ERR = new Error(AppError.UserDoesNotExist);
 const SELF_CHAT_ERR = new Error(AppError.SelfChatIsNotSupported);
@@ -50,7 +50,7 @@ async function roomsGet(userId: number) {
       )
     ) AS display_data ON display_data.room_id = fil_rooms.id
 
-    ORDER BY fil_rooms.created DESC;`,
+    ORDER BY message_created DESC;`,
     [userId, userId],
   );
 
@@ -86,9 +86,7 @@ async function roomsIdGet(userId: number, roomId: number) {
         INNER JOIN user_rooms ON user_rooms.room_id = rooms.id
         INNER JOIN users ON users.id = user_rooms.user_id
         WHERE rooms.type = 'direct' AND users.id != ?)
-    ) AS display_data ON display_data.room_id = fil_rooms.id
-
-    ORDER BY fil_rooms.created DESC;`,
+    ) AS display_data ON display_data.room_id = fil_rooms.id;`,
     [roomId, userId, userId],
   );
 
@@ -178,7 +176,7 @@ async function roomsDirectPost(
   } else {
     const newMessage = messageRes.getOrThrow();
 
-    const sendRes = await sendMessage(newMessage);
+    const sendRes = await websocket.sendMessage(newMessage);
     if (sendRes.isError()) {
       console.warn("Could not send a new system message", sendRes);
     }

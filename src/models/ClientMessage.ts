@@ -1,4 +1,4 @@
-import File from "./File";
+import FileInfo from "./FileInfo";
 
 type ClientMessage = {
   id: number;
@@ -10,7 +10,7 @@ type ClientMessage = {
   from_self: boolean;
   text: string;
   created: number;
-  files?: File[];
+  files?: FileInfo[];
 };
 
 export default ClientMessage;
