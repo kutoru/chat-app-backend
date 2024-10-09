@@ -49,6 +49,21 @@ export async function roomsDirectPost(
   return response.send({ data: room });
 }
 
+export async function roomsGroupPost(
+  request: FastifyRequest<{ Body: { groupName: string } }>,
+  response: FastifyReply,
+) {
+  const result = await rooms.roomsGroupPost(
+    request.userId!,
+    request.body.groupName,
+  );
+  if (result.isError()) {
+    return handleError(response, result.error);
+  }
+
+  return response.send({ data: result.getOrThrow() });
+}
+
 export async function roomsIdMessagesGet(
   request: FastifyRequest<{ Params: { id: string } }>,
   response: FastifyReply,

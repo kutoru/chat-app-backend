@@ -18,3 +18,13 @@ export const roomsDirectPostSchema = {
     required: ["username"],
   },
 };
+
+export const roomsGroupPostSchema = {
+  body: {
+    type: "object",
+    properties: {
+      groupName: { type: "string" },
+    },
+    required: ["groupName"],
+  },
+};

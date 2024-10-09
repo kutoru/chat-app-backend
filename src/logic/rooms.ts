@@ -9,6 +9,7 @@ import websocket from "../websocket";
 
 const USER_DOES_NOT_EXIST_ERR = new Error(AppError.UserDoesNotExist);
 const SELF_CHAT_ERR = new Error(AppError.SelfChatIsNotSupported);
+const INVALID_FIELDS_ERR = new Error(AppError.InvalidFields);
 
 async function roomsGet(userId: number) {
   const roomsRes = await poolQuery<RoomPreview[]>(
@@ -269,4 +270,88 @@ async function getDirectRoomFromRoomId(
   return Result.ok(room);
 }
 
-export default { roomsGet, roomsIdGet, roomsDirectPost };
+async function roomsGroupPost(
+  userId: number,
+  groupName: string,
+): Promise<Result<Room, Error>> {
+  if (groupName.length < 4 || groupName.length > 255) {
+    return Result.error(INVALID_FIELDS_ERR);
+  }
+
+  // creating the room
+
+  const connRes = await getTransactionConnection();
+  if (connRes.isError()) {
+    return connRes;
+  }
+
+  const conn = connRes.getOrThrow();
+
+  const roomInsertRes = await conn.query<ResultSetHeader>(
+    "INSERT INTO rooms (name, type) VALUES (?, 'group');",
+    [groupName],
+  );
+  if (roomInsertRes.isError()) {
+    return roomInsertRes;
+  }
+
+  const roomId = roomInsertRes.getOrThrow().insertId;
+
+  const userInsertRes = await conn.query(
+    "INSERT INTO user_rooms (user_id, room_id) VALUES (?);",
+    [[userId, roomId]],
+  );
+  if (userInsertRes.isError()) {
+    return userInsertRes;
+  }
+
+  const messageInsertRes = await conn.query<ResultSetHeader>(
+    "INSERT INTO messages (room_id, text) VALUES (?, 'Chat has been created');",
+    [roomId],
+  );
+  if (messageInsertRes.isError()) {
+    return messageInsertRes;
+  }
+
+  const messageId = messageInsertRes.getOrThrow().insertId;
+
+  const commitRes = await conn.commit();
+  if (commitRes.isError()) {
+    return commitRes;
+  }
+
+  // sending the system message
+
+  const messageRes = await messages.getSystemMessage(messageId);
+  if (messageRes.isError()) {
+    console.warn("Could not get a new system message", messageRes);
+  } else {
+    const newMessage = messageRes.getOrThrow();
+
+    const sendRes = await websocket.sendMessage(newMessage);
+    if (sendRes.isError()) {
+      console.warn("Could not send a new system message", sendRes);
+    }
+  }
+
+  // respond with the new room
+
+  const newRoomRes = await poolQuery<Room[]>(
+    "SELECT * FROM rooms WHERE id = ?;",
+    [roomId],
+  );
+  if (newRoomRes.isError()) {
+    return newRoomRes;
+  }
+
+  const room = newRoomRes.getOrThrow()[0];
+  if (!room) {
+    return Result.error(
+      new Error("Inserted a direct room but could not get it"),
+    );
+  }
+
+  return Result.ok(room);
+}
+
+export default { roomsGet, roomsIdGet, roomsDirectPost, roomsGroupPost };

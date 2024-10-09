@@ -4,12 +4,17 @@ dotenv.config();
 import { FastifyInstance, fastify } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import cors from "@fastify/cors";
-import { roomsDirectPostSchema, loginSchema } from "./models/fastify-schemas";
+import {
+  roomsDirectPostSchema,
+  loginSchema,
+  roomsGroupPostSchema,
+} from "./models/fastify-schemas";
 import { loginPost, registerPost, usersAllGet, usersGet } from "./routes/users";
 import { filesGet, filesMessagePost, filesPfpPost } from "./routes/files";
 import {
   roomsDirectPost,
   roomsGet,
+  roomsGroupPost,
   roomsIdGet,
   roomsIdMessagesGet,
 } from "./routes/rooms";
@@ -74,6 +79,11 @@ async function privateRoutes(
     "/rooms/direct",
     { schema: roomsDirectPostSchema },
     roomsDirectPost,
+  );
+  fastify.post(
+    "/rooms/group",
+    { schema: roomsGroupPostSchema },
+    roomsGroupPost,
   );
   fastify.get("/rooms/:id/messages", roomsIdMessagesGet);
 
