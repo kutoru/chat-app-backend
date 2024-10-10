@@ -8,6 +8,7 @@ import {
   roomsDirectPostSchema,
   loginSchema,
   roomsGroupPostSchema,
+  roomsIdInvitePostSchema,
 } from "./models/fastify-schemas";
 import { loginPost, registerPost, usersAllGet, usersGet } from "./routes/users";
 import { filesGet, filesMessagePost, filesPfpPost } from "./routes/files";
@@ -16,6 +17,7 @@ import {
   roomsGet,
   roomsGroupPost,
   roomsIdGet,
+  roomsIdInvitePost,
   roomsIdMessagesGet,
 } from "./routes/rooms";
 import fastifyWebsocket from "@fastify/websocket";
@@ -84,6 +86,11 @@ async function privateRoutes(
     "/rooms/group",
     { schema: roomsGroupPostSchema },
     roomsGroupPost,
+  );
+  fastify.post(
+    "/rooms/:id/invite",
+    { schema: roomsIdInvitePostSchema },
+    roomsIdInvitePost,
   );
   fastify.get("/rooms/:id/messages", roomsIdMessagesGet);
 

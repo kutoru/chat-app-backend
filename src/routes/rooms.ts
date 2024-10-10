@@ -64,6 +64,30 @@ export async function roomsGroupPost(
   return response.send({ data: result.getOrThrow() });
 }
 
+export async function roomsIdInvitePost(
+  request: FastifyRequest<{
+    Body: { username: string };
+    Params: { id: string };
+  }>,
+  response: FastifyReply,
+) {
+  const roomId = parseNumber(request.params.id);
+  if (!roomId) {
+    return response.code(400).send({ message: "Invalid param" });
+  }
+
+  const result = await rooms.roomsIdInvitePost(
+    roomId,
+    request.userId!,
+    request.body.username,
+  );
+  if (result.isError()) {
+    return handleError(response, result.error);
+  }
+
+  return response.send({ data: result.getOrThrow() });
+}
+
 export async function roomsIdMessagesGet(
   request: FastifyRequest<{ Params: { id: string } }>,
   response: FastifyReply,

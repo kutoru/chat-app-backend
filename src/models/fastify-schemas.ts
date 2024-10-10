@@ -28,3 +28,13 @@ export const roomsGroupPostSchema = {
     required: ["groupName"],
   },
 };
+
+export const roomsIdInvitePostSchema = {
+  body: {
+    type: "object",
+    properties: {
+      username: { type: "string" },
+    },
+    required: ["username"],
+  },
+};

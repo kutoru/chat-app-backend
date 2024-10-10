@@ -14,6 +14,7 @@ export function handleError(response: FastifyReply, error: Error) {
     case AppError.InvalidFileType:
     case AppError.SelfChatIsNotSupported:
     case AppError.InvalidFields:
+    case AppError.IsAlreadyMember:
       code = 400;
       message = error.message;
       break;

@@ -10,6 +10,8 @@ import websocket from "../websocket";
 const USER_DOES_NOT_EXIST_ERR = new Error(AppError.UserDoesNotExist);
 const SELF_CHAT_ERR = new Error(AppError.SelfChatIsNotSupported);
 const INVALID_FIELDS_ERR = new Error(AppError.InvalidFields);
+const FORBIDDEN_ERR = new Error(AppError.Forbidden);
+const ALREADY_MEMBER_ERR = new Error(AppError.IsAlreadyMember);
 
 async function roomsGet(userId: number) {
   const roomsRes = await poolQuery<RoomPreview[]>(
@@ -354,4 +356,110 @@ async function roomsGroupPost(
   return Result.ok(room);
 }
 
-export default { roomsGet, roomsIdGet, roomsDirectPost, roomsGroupPost };
+async function roomsIdInvitePost(
+  roomId: number,
+  fromUserId: number,
+  toUsername: string,
+) {
+  // checking if the sender is in the room
+  // and if the room is a group
+  // and getting the sender's name for later
+
+  const userCheckRes = await poolQuery<
+    { user_id: number; username: string; room_type: "direct" | "group" }[]
+  >(
+    `SELECT
+      users.id AS user_id, users.username, rooms.type AS room_type
+    FROM user_rooms
+    INNER JOIN rooms ON rooms.id = user_rooms.room_id
+    INNER JOIN users ON users.id = user_rooms.user_id
+    WHERE user_rooms.user_id = ? AND user_rooms.room_id = ?;`,
+    [fromUserId, roomId],
+  );
+  if (userCheckRes.isError()) {
+    return userCheckRes;
+  }
+
+  const inviter = userCheckRes.getOrThrow()[0];
+  if (!inviter || inviter.room_type !== "group") {
+    return Result.error(FORBIDDEN_ERR);
+  }
+
+  // getting the invitee's id and
+  // checking if they are already in the room
+
+  const inviteeResult = await poolQuery<{ user_id: number; room_id: number }[]>(
+    `SELECT users.id AS user_id, user_rooms.room_id FROM users
+    LEFT JOIN user_rooms ON user_rooms.user_id = users.id AND user_rooms.room_id = ?
+    WHERE users.username = ?;`,
+    [roomId, toUsername],
+  );
+  if (inviteeResult.isError()) {
+    return inviteeResult;
+  }
+
+  const invitee = inviteeResult.getOrThrow()[0];
+  if (!invitee) {
+    return Result.error(USER_DOES_NOT_EXIST_ERR);
+  }
+
+  if (invitee.room_id) {
+    return Result.error(ALREADY_MEMBER_ERR);
+  }
+
+  // adding the user to the room
+
+  const connRes = await getTransactionConnection();
+  if (connRes.isError()) {
+    return connRes;
+  }
+
+  const conn = connRes.getOrThrow();
+
+  const userInsertRes = await conn.query(
+    "INSERT INTO user_rooms (user_id, room_id) VALUES (?);",
+    [[invitee.user_id, roomId]],
+  );
+  if (userInsertRes.isError()) {
+    return userInsertRes;
+  }
+
+  const messageInsertRes = await conn.query<ResultSetHeader>(
+    "INSERT INTO messages (room_id, text) VALUES (?);",
+    [[roomId, `@${toUsername} has been invited by @${inviter.username}`]],
+  );
+  if (messageInsertRes.isError()) {
+    return messageInsertRes;
+  }
+
+  const messageId = messageInsertRes.getOrThrow().insertId;
+
+  const commitRes = await conn.commit();
+  if (commitRes.isError()) {
+    return commitRes;
+  }
+
+  // send the system message to all relevant clients
+
+  const messageRes = await messages.getSystemMessage(messageId);
+  if (messageRes.isError()) {
+    console.warn("Could not get a new system message", messageRes);
+  } else {
+    const newMessage = messageRes.getOrThrow();
+
+    const sendRes = await websocket.sendMessage(newMessage);
+    if (sendRes.isError()) {
+      console.warn("Could not send a new system message", sendRes);
+    }
+  }
+
+  return Result.ok({});
+}
+
+export default {
+  roomsGet,
+  roomsIdGet,
+  roomsDirectPost,
+  roomsGroupPost,
+  roomsIdInvitePost,
+};

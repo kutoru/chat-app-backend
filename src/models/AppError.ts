@@ -7,6 +7,7 @@ enum AppError {
   InvalidFileType = "Invalid file type",
   Forbidden = "Forbidden",
   InvalidFields = "Invalid fields",
+  IsAlreadyMember = "The user is already in this group",
 }
 
 export default AppError;
