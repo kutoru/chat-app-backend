@@ -13,6 +13,7 @@ import {
 } from "./models/fastify-schemas";
 import {
   loginPost,
+  logoutGet,
   passPost,
   registerPost,
   usersAllGet,
@@ -77,6 +78,7 @@ async function privateRoutes(
   fastify.addHook("preHandler", authMiddleware);
 
   fastify.post("/pass", { schema: passPostSchema }, passPost);
+  fastify.get("/logout", logoutGet);
   fastify.get("/users", usersGet);
 
   fastify.post("/files/pfp", filesPfpPost);

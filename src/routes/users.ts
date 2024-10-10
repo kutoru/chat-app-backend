@@ -60,6 +60,14 @@ export async function passPost(
   return response.send({});
 }
 
+export async function logoutGet(
+  request: FastifyRequest,
+  response: FastifyReply,
+) {
+  response.setCookie("t", "", { maxAge: 0 });
+  return response.send({});
+}
+
 export async function usersGet(
   request: FastifyRequest,
   response: FastifyReply,
