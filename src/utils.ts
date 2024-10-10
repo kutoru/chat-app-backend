@@ -15,6 +15,7 @@ export function handleError(response: FastifyReply, error: Error) {
     case AppError.SelfChatIsNotSupported:
     case AppError.InvalidFields:
     case AppError.IsAlreadyMember:
+    case AppError.NewPasswordRepeated:
       code = 400;
       message = error.message;
       break;

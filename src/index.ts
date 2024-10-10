@@ -9,8 +9,15 @@ import {
   loginSchema,
   roomsGroupPostSchema,
   roomsIdInvitePostSchema,
+  passPostSchema,
 } from "./models/fastify-schemas";
-import { loginPost, registerPost, usersAllGet, usersGet } from "./routes/users";
+import {
+  loginPost,
+  passPost,
+  registerPost,
+  usersAllGet,
+  usersGet,
+} from "./routes/users";
 import { filesGet, filesMessagePost, filesPfpPost } from "./routes/files";
 import {
   roomsDirectPost,
@@ -69,6 +76,7 @@ async function privateRoutes(
 ) {
   fastify.addHook("preHandler", authMiddleware);
 
+  fastify.post("/pass", { schema: passPostSchema }, passPost);
   fastify.get("/users", usersGet);
 
   fastify.post("/files/pfp", filesPfpPost);

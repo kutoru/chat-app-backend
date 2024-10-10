@@ -6,9 +6,12 @@ import { generateNewToken } from "../tokens";
 import AppError from "../models/AppError";
 import { ResultSetHeader } from "mysql2";
 
+const SALT_ROUNDS = 10;
+
 const INVALID_CREDS_ERR = new Error(AppError.InvalidCredentials);
 const USER_EXISTS_ERR = new Error(AppError.UserExists);
 const INVALID_CREDS_FORMAT_ERR = new Error(AppError.InvalidCredentialsFormat);
+const PASS_REPEATED_ERR = new Error(AppError.NewPasswordRepeated);
 
 async function login(data: { username: string; password: string }) {
   const res = await poolQuery<User[]>(
@@ -56,7 +59,7 @@ async function register(data: { username: string; password: string }) {
     return Result.error(USER_EXISTS_ERR);
   }
 
-  const hashedPass = await bcrypt.hash(data.password, 10);
+  const hashedPass = await bcrypt.hash(data.password, SALT_ROUNDS);
 
   const insertRes = await poolQuery<ResultSetHeader>(
     `INSERT INTO users (username, password) VALUES (?, ?);`,
@@ -70,6 +73,48 @@ async function register(data: { username: string; password: string }) {
 
   const tokenRes = await generateNewToken(userId);
   return tokenRes;
+}
+
+async function passPost(
+  userId: number,
+  oldPassword: string,
+  newPassword: string,
+) {
+  if (newPassword.length < 4 || newPassword.length > 255) {
+    return Result.error(INVALID_CREDS_FORMAT_ERR);
+  }
+
+  const oldResult = await poolQuery<{ id: number; password: string }[]>(
+    "SELECT id, password FROM users WHERE id = ?;",
+    [userId],
+  );
+  if (oldResult.isError()) {
+    return oldResult;
+  }
+
+  const oldUser = oldResult.getOrThrow()[0];
+
+  const isMatch = await bcrypt.compare(oldPassword, oldUser.password);
+  if (!isMatch) {
+    return Result.error(INVALID_CREDS_ERR);
+  }
+
+  const newIsMatch = await bcrypt.compare(newPassword, oldUser.password);
+  if (newIsMatch) {
+    return Result.error(PASS_REPEATED_ERR);
+  }
+
+  const hashedPass = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+  const updateRes = await poolQuery(
+    "UPDATE users SET password = ? WHERE id = ?;",
+    [hashedPass, userId],
+  );
+  if (updateRes.isError()) {
+    return updateRes;
+  }
+
+  return Result.ok();
 }
 
 async function usersGet(userId: number) {
@@ -101,6 +146,7 @@ async function usersAllGet() {
 export default {
   login,
   register,
+  passPost,
   usersGet,
   isAdmin,
   usersAllGet,

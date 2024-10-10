@@ -8,6 +8,7 @@ enum AppError {
   Forbidden = "Forbidden",
   InvalidFields = "Invalid fields",
   IsAlreadyMember = "The user is already in this group",
+  NewPasswordRepeated = "New password should not match the old one",
 }
 
 export default AppError;

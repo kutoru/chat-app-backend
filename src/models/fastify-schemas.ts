@@ -9,6 +9,17 @@ export const loginSchema = {
   },
 };
 
+export const passPostSchema = {
+  body: {
+    type: "object",
+    properties: {
+      oldPassword: { type: "string" },
+      newPassword: { type: "string" },
+    },
+    required: ["oldPassword", "newPassword"],
+  },
+};
+
 export const roomsDirectPostSchema = {
   body: {
     type: "object",

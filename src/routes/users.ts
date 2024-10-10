@@ -42,6 +42,24 @@ export async function registerPost(
   return response.send({});
 }
 
+export async function passPost(
+  request: FastifyRequest<{
+    Body: { oldPassword: string; newPassword: string };
+  }>,
+  response: FastifyReply,
+) {
+  const result = await users.passPost(
+    request.userId!,
+    request.body.oldPassword,
+    request.body.newPassword,
+  );
+  if (result.isError()) {
+    return handleError(response, result.error);
+  }
+
+  return response.send({});
+}
+
 export async function usersGet(
   request: FastifyRequest,
   response: FastifyReply,
